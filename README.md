@@ -102,7 +102,7 @@ let result: State<i32, i32> = m! {
 
 Source: [src/stateresult.rs](src/stateresult.rs)
 
-For the State monad, our type looks like:
+For the `State` + `Result` monad, our type looks like:
 
 ```rust
 pub struct StateResult<'a, S, A, E>(Box<dyn FnOnce(S) -> Result<(S, A), E> + 'a>);
