@@ -3,7 +3,7 @@
 Recently I saw a post in [/r/rust](https://reddit.com/r/rust) complaining a bit about the
 [Nom](https://github.com/Geal/nom) parser combinator crate
 requiring manually threading input through the parsers and I was curious if there was
-a way to make writing Nom parsers more similar to Haskell. monads and `do` notation make
+a way to make writing Nom parsers more similar to Haskell. Monads and `do` notation make
 writing parsers in Haskell very ergonomic.
 
 
@@ -295,7 +295,7 @@ I suspect not. There are several pretty big disadvantages:
 
 1. Wrapping/building up closures on every operation is very likely to sap
 performance and I wouldn't be surprised if it blows up the stack too.
-2. Many Nom parsers take other parsers. If you're trying to use do notation, you're
+2. Many Nom parsers take other parsers. If you're trying to use `do` notation, you're
 suddenly back in plain Nom parser territory and have to either keep trying wrap to the functions or just write
 your parser the old fashioned way starting from that point.
 It is possible writing a library of wrapped combinators would alleviate that issue.
