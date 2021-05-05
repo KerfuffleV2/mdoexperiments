@@ -121,8 +121,8 @@ pub fn putstres<'a, SNEW: 'a, E>(snew: SNEW) -> StateResult<'a, SNEW, (), E> {
 }
 ```
 
-The only difference is now the value is wrapped by `Result`. Since now our actions
-can fail, a function to throw an error and abort the computation is included:
+The only difference is now the value is wrapped by `Result`. Since our actions
+can fail, I included a function to throw an error and abort the computation:
 
 ```rust
 pub fn throwstres<'a, S, A, E: 'a>(e: E) -> StateResult<'a, S, A, E> {
@@ -190,7 +190,7 @@ just expects a certain value in the input.
 You'd use it something like this
 
 ```rust
-let (next_input, _result) = tag("abc")(current_input);
+let (next_input, _result) = tag("abc")(current_input)?;
 ```
 
 If `tag` matches, then it consumes that input and returns the value - otherwise it fails.
@@ -287,8 +287,6 @@ fn hex_color(input: &str) -> IResult<&str, Color> {
 }
 ```
 
-
-
 # Is It Practical?
 
 I suspect not. There are several pretty big disadvantages:
@@ -304,6 +302,17 @@ etc. It's not clear the benefit of clearer syntax with monadic parsing (if every
 outweighs that downside.
 
 On the plus side, it's pretty interesting that this is possible and I got further with it than I expected to!
+
+# Project
+
+This project includes a binary that just runs some random test code. You can execute it using
+`cargo run`.
+
+The different monads have a simple test block, which you can run with `cargo test`.
+
+The project also works as a library and can be imported. It exports each module by name, and also
+`mdoexperiments::prelude` which pulls in everything and re-exports it.
+
 
 # Closing
 
