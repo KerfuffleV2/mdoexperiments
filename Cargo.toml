@@ -1,0 +1,9 @@
+[package]
+name = "mdoexperiments"
+version = "0.1.0"
+authors = ["KerfuffleV2 <kerfluffle@keemail.me>"]
+edition = "2018"
+
+[dependencies]
+nom = "6.1"
+do-notation = "0.1"
