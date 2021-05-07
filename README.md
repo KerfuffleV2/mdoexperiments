@@ -1,22 +1,21 @@
 # Introduction
 
-Recently I saw a post in [/r/rust](https://reddit.com/r/rust) complaining a bit about the
-[Nom](https://github.com/Geal/nom) parser combinator crate
-requiring manually threading input through the parsers and I was curious if there was
-a way to make writing Nom parsers more similar to Haskell. Monads and `do` notation make
-writing parsers in Haskell very ergonomic.
+As a long time Haskell developer recently delving into Rust, something I've really missed
+is monads and `do` notation. One thing monadic `do` notation makes particularly nice is
+writing parsers. This article will explore the possibility of enabling Haskell-style `do`
+notation for writing parsers in Rust.
 
+Probably the most popular crate for parsing in Rust is called [Nom](https://github.com/Geal/nom)
+and its parser combinator functions requires manually threading the parser input.
+To be fair, I should mention that Nom also provides macro-based parser combinators and
+a `do_parse!` macro which is pretty similar to `do` notation in function.
 
-Before I continue, I'd like to add that I don't intend any slight or criticism toward Nom, nor am I implying that using
-the combinator functions directly is the only or best approach. I just was interested in solving this particular
-issue using `do` notation. I believe Nom also includes macro versions of combinators which may be
-more conventient to use.
+There are also several crates which attempt to allow `do` notation using macros.
+I picked one called [do-notation](https://github.com/phaazon/do-notation) that seemed to take
+a general approach and had also been updated relatively recently. Note: `do-notation` uses `m!`
+rather than `do!` since `do` is a reserved word in Rust.
 
-Anyway, it turns out there's a crate which uses a handy macro to enable something very similar to Haskell's
-`do` notation - enter [do-notation](https://github.com/phaazon/do-notation) which actually uses `m!` rather than
-`do!` since `do` is a reserved word in Rust.
-
-A simple example with `Option` would be something like this:
+A simple example with `Option` (known as `Maybe` in the Haskell world) would be something like this:
 
 ```rust
 // Type annotation included just for clarity.
@@ -40,19 +39,22 @@ impl <INNER> Lift for Option<INNER> {
 }
 ```
 
-If you're familiar with Haskell, this would be `return` or `pure`. The last line of the example with
-`m!` could also be written as `<_>::lift(x + y)` or `<Option<i32>>::lift(x + y)`.
+If you're familiar with Haskell, this would be `return` or `pure`. `Some` in previous example could
+be written as `<_>::lift` (automatically inferring the type) or `<Option<i32>>::lift`.
 
-Also required is an `and_then` function associated with the type you're using as a monad. Rust `std::Option` and `std::Result` already include this by default. Link to [Option::and_then](https://doc.rust-lang.org/std/option/enum.Option.html#method.and_then) -
+Also required is an `and_then` associated function for the type you're planning to use with `m!`.
+Rust's `std::Option` and `std::Result` already include this by default. Here is a link to
+[Option::and_then](https://doc.rust-lang.org/std/option/enum.Option.html#method.and_then)
 and you can just view the source for it right there. We'd call this `bind` or `>>=` in Haskell.
 
-Not being a type wizard, I had to work my way toward being able to represent a Nom parser, which is basically a State monad combined with Error. Starting with...
+Nom parsers are just state combined with the ability to fail, so let's work our way toward
+building a monad that will combine those traits. Starting with...
 
 # State
 
 Source: [src/state.rs](src/state.rs)
 
-The approach I used here was precisely the same as the state monad from Haskell - the `State` type holds a closure
+The approach I used here was precisely the same as the state monad from Haskell — the `State` type holds a closure
 which takes the current state and returns a tuple of the new state and the result of the action. The type
 looks like this:
 
@@ -68,7 +70,7 @@ pub fn getst<'a, S: Clone + 'a>() -> State<'a, S, S> {
 }
 ```
 
-And to set the state:
+And one to set the state:
 
 ```rust
 pub fn putst<'a, SNEW: 'a>(snew: SNEW) -> State<'a, SNEW, ()> {
@@ -76,7 +78,7 @@ pub fn putst<'a, SNEW: 'a>(snew: SNEW) -> State<'a, SNEW, ()> {
 }
 ```
 
-The function to run an action is very simple - we just apply the state to the closure stored inside `State`
+The function to run a state action is very simple — we just apply the state to the closure stored inside `State`
 to get back a tuple of the return value and last state.
 
 ```rust
@@ -89,14 +91,17 @@ Using it looks like this:
 
 ```rust
 // Type annotation here not actually needed.
-let result: State<i32, i32> = m! {
+let action: State<i32, i32> = m! {
   st <- getst();
   putst(st + 1);
   st <- getst();
   putst(st + 1);
   getst()
 };
+let result = run_state(10, action);
 ```
+
+`result` here would be `(12, 12)`
 
 # State Inside Result
 
@@ -133,7 +138,7 @@ pub fn throwstres<'a, S, A, E: 'a>(e: E) -> StateResult<'a, S, A, E> {
 Using the monad looks like this:
 
 ```rust
-let result = m! {
+let action = m! {
   st <- getstres();
   putstres(st + 1);
   st <- getstres();
@@ -147,6 +152,7 @@ let result = m! {
   };
   getstres()
 };
+let result = run_state_result(10, action);
 ```
 
 The type for `result` in the previous example would be something like
@@ -157,7 +163,7 @@ way of doing it is most similar to Nom but there's another possibility:
 
 # State Beside Result
 
-Source: [src/stateeither.rs](src/stateeither.rs) - no particular reason for that name.
+Source: [src/stateeither.rs](src/stateeither.rs) — no particular reason for that name.
 
 In this case, the type looks like:
 
@@ -187,13 +193,13 @@ actually work very similar to the closure we store inside the `State` or `NomPar
 return a closure that takes the "state" (`input`). One simple example is the `tag` combinator which
 just expects a certain value in the input.
 
-You'd use it something like this
+Example usage:
 
 ```rust
 let (next_input, _result) = tag("abc")(current_input)?;
 ```
 
-If `tag` matches, then it consumes that input and returns the value - otherwise it fails.
+If `tag` matches, it consumes the input and returns the matched value — otherwise it fails.
 
 And of course the next time you wanted to apply a parser combinator, you'd pass the input state that `tag` had
 returned and recieve the next one plus the return value and so on, which is a bit of a pain.
@@ -266,7 +272,7 @@ fn hex_color_parser<'a>() -> NompStr<'a, Color> {
 }
 ```
 
-For comparison, the corresponding plain version with manual input threading would look like:
+For comparison, the corresponding non-monadic approach with manual input threading would look like:
 
 ```rust
 // Helper functions and type elided
@@ -287,16 +293,21 @@ fn hex_color(input: &str) -> IResult<&str, Color> {
 }
 ```
 
+**Note**: The example provided in the Nom repo uses the `tuple` combinator to avoid three separate
+calls to `hex_primary`.
+
 # Is It Practical?
 
-I suspect not. There are several pretty big disadvantages:
+I suspect not. There are several apparent disadvantages:
 
 1. Wrapping/building up closures on every operation is very likely to sap
 performance and I wouldn't be surprised if it blows up the stack too.
-2. Many Nom parsers take other parsers. If you're trying to use `do` notation, you're
-suddenly back in plain Nom parser territory and have to either keep trying wrap to the functions or just write
-your parser the old fashioned way starting from that point.
-It is possible writing a library of wrapped combinators would alleviate that issue.
+
+2. Many Nom parsers take other parsers. When trying to use `do` notation, you're
+suddenly back in plain Nom combinator territory and have to either re-enter `NomParser`
+or just write the rest of your parser the old fashioned way.
+It is possible writing a library of wrapped combinators would alleviate the issue.
+
 3. Code inside macros with special syntax presents a problem for development tools like IDEs, automatic formatting,
 etc. It's not clear the benefit of clearer syntax with monadic parsing (if everyone would even agree it is a benefit!)
 outweighs that downside.
@@ -318,7 +329,6 @@ The project also works as a library and can be imported. It exports each module 
 
 I'm sure my approach isn't optimal, even within what's allowed by Rust's type system. I'd be very
 interested in seeing potential improvements. There's also a good change my use of lifetimes
-is incorrect or suboptimal - I basicalyl got it to the point where my examples would run and then
-left it alone.
+is incorrect or suboptimal — I only got it to the point where my examples would run.
 
 Feedback welcome! The best way to contact me is via reddit with username `KerfuffleV2`
